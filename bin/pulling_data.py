@@ -22,10 +22,6 @@ def main(dataset: str, output_dir: str, start_year: int, end_year: int):
 
     france_polygon = RectangularPolygon(-6.84, 13.71, 41.11, 51.4)
 
-    # Pulling elevation data.
-    get_geopotential_data(output_dir, start_year, france_polygon)
-    get_elevation_data(output_dir)
-
     for year in range(start_year, end_year + 1):
         CdsApiCall(dataset, output_dir, year, era5_features_identifiers, france_polygon)\
         .download_data()
@@ -37,7 +33,11 @@ def main(dataset: str, output_dir: str, start_year: int, end_year: int):
     for year in range(start_year, end_year + 1):
         CdsDataPreparation(dataset, output_dir, year, era5_features_identifiers, france_polygon)\
             .create_features()
-        
+    
+    # Pulling elevation data if absent
+    get_geopotential_data(output_dir, start_year, france_polygon)
+    get_elevation_data(output_dir)
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     

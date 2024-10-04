@@ -26,7 +26,7 @@ class CdsDataPreparation:
         handlers = {
             "reanalysis-era-interim": EraInterimProcessor,
             "reanalysis-era5-land": Era5LandProcessor,
-            "reanalysis-single-levels": Era5SingleLevelsProcessor,
+            "reanalysis-era5-single-levels": Era5SingleLevelsProcessor,
         }
 
         dataset_class = handlers[self.era5_apiname]

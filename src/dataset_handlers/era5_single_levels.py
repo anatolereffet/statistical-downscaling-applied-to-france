@@ -24,7 +24,7 @@ class Era5SingleLevelsApiCall:
         self.client = cdsapi.Client()
         self.output_dir = output_dir 
         self.region = region
-        self.cds_apiname = "reanalysis-single-levels"
+        self.cds_apiname = "reanalysis-era5-single-levels"
 
     def _create_request(self, year:str, features:list[str]) -> dict:
  

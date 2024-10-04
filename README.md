@@ -2,7 +2,7 @@
 
 # Quickstart 
 
-You'll need a CDS [API key](https://cds.climate.copernicus.eu/api-how-to) according to your OS
+You'll need a CDS [API key](https://cds.climate.copernicus.eu/how-to-api) according to your OS
 
 Once you have it, create a virtual environment, the project has been tested on **_Python 3.9.7_**
 ```bash

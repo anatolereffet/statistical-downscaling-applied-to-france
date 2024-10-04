@@ -16,6 +16,6 @@ SEASON_MAPPER = {
 
 DATASET_MAPPER = {
     "10km":"reanalysis-era5-land",
-    "25km":"reanalysis-single-levels",
+    "25km":"reanalysis-era5-single-levels",
     "80km":"reanalysis-era-interim"
 }

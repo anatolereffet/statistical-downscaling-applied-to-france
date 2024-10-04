@@ -26,7 +26,7 @@ class Era5LandApiCall:
         self.region = region
         self.cds_apiname = "reanalysis-era5-land"
 
-    def create_request(self, year:str, features:list[str], month:str="01") -> dict:
+    def _create_request(self, year:str, features:list[str], month:str="01") -> dict:
 
         request = {
             "variable": features,

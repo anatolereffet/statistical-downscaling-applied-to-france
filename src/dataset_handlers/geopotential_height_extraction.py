@@ -45,16 +45,16 @@ def get_geopotential_data(download_parent_dir:str, year:str, region: Rectangular
 
     era5_hourly = Era5SingleLevelsApiCall(download_parent_dir, region)
 
-    era5_hourly_request = era5_hourly._create_request(year, list(geopotential_feature_identifier.keys()))
+    era5_hourly_request = era5_hourly._create_request(str(year), list(geopotential_feature_identifier.keys()))
     
     era5_hourly_request["day"] = ["01"]
     era5_hourly_request["month"] = ["01"]
-    era5_hourly_request["time"] = ["01"]
+    era5_hourly_request["time"] = ["00:00"]
 
     era5_interim = EraInterimApiCall(download_parent_dir, region)
     
-    era5_interim_request = era5_interim._create_request(year, f"{geopotential_feature_identifier["geopotential"].uid}.128", False)
-    era5_interim_request["date"] = f"{year}-01-01"
+    era5_interim_request = era5_interim._create_request(year, f"{geopotential_feature_identifier['geopotential'].uid}.128", False)
+    era5_interim_request["date"] = f"{str(year)}-01-01"
     era5_interim_request["time"] = "00:00"
 
     geopotential_filepath, elevation_filepath = generate_invariant_filepaths(download_parent_dir, era5_hourly.cds_apiname, "geopotential","elevation")
