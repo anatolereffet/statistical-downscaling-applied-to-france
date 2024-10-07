@@ -28,7 +28,7 @@ class CdsApiCall:
         handlers = {
             "reanalysis-era-interim": EraInterimApiCall,
             "reanalysis-era5-land": Era5LandApiCall,
-            "reanalysis-single-levels": Era5SingleLevelsApiCall
+            "reanalysis-era5-single-levels": Era5SingleLevelsApiCall
         }
 
         dataset_class = handlers[self.era5_apiname]

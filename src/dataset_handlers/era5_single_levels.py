@@ -57,9 +57,11 @@ class Era5SingleLevelsApiCall:
         if os.path.isfile(output_filepath):
             print("Raw data already exists, needs processing")
             return
-            
-        request = self._create_request(year, features)
         
+        features = list(features.keys())
+        
+        request = self._create_request(str(year), features)
+
         # Pull data from the API
         self.client.retrieve(self.cds_apiname, request, output_filepath)
 
