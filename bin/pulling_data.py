@@ -1,7 +1,7 @@
 import argparse 
 
 from src.copernicus_handler.api_call import CdsApiCall
-from src.dataset_handlers.geopotential_height_extraction import get_elevation_data, get_geopotential_data
+from src.dataset_handlers.static_features_extraction import get_elevation_data, get_geopotential_data, get_landseamasks
 from src.copernicus_handler.data_preparation import CdsDataPreparation
 from src.utils import instanciate_mapping, RectangularPolygon
 
@@ -25,7 +25,7 @@ def main(dataset: str, output_dir: str, start_year: int, end_year: int):
     for year in range(start_year, end_year + 1):
         CdsApiCall(dataset, output_dir, year, era5_features_identifiers, france_polygon)\
         .download_data()
-    
+
     for year in range(start_year, end_year + 1):
         CdsDataPreparation(dataset, output_dir, year, era5_features_identifiers, france_polygon)\
             .singularize_features()
@@ -34,8 +34,9 @@ def main(dataset: str, output_dir: str, start_year: int, end_year: int):
         CdsDataPreparation(dataset, output_dir, year, era5_features_identifiers, france_polygon)\
             .create_features()
     
-    # Pulling elevation data if absent
+    # Pulling elevation and land sea mask data if absent
     get_geopotential_data(output_dir, start_year, france_polygon)
+    get_landseamasks(output_dir, start_year, france_polygon)
     get_elevation_data(output_dir)
     
 if __name__ == "__main__":
@@ -44,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset",
         choices = ["10km","25km","80km"],
-        default = "10km",
+        default = "80km",
         help = "Choosing which Era5 dataset to pull (default is '25km')."
     )
 

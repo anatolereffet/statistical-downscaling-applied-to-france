@@ -104,3 +104,45 @@ def get_elevation_data(download_parent_dir:str) -> None:
         
         # Cleanup directory space
         os.remove(geopotential_filepath)
+
+def get_landseamasks(download_parent_dir:str, year:str, region: RectangularPolygon) -> None:
+    """
+    Replica of get_geopotential_data but for land_sea_mask
+
+    Should only run for era5 hourly and era interim datasets
+
+    Args:
+        download_parent_dir (str): Parent directory holding all data 
+        year (str): Year of the desired file
+        region (RectangularPolygon): Desired area
+    """
+
+    landseamask_info = [
+        ("land_sea_mask", "lsm", 172)
+    ]
+    landseamask_feature_identifier = instanciate_mapping(landseamask_info)
+
+    landseamask_filepath = os.path.join(download_parent_dir, "reanalysis-era5-single-levels", "land_sea_mask.nc")
+
+    if not os.path.exists(landseamask_filepath):
+        era5_hourly = Era5SingleLevelsApiCall(download_parent_dir, region)
+
+        era5_hourly_request = era5_hourly._create_request(str(year), list(landseamask_feature_identifier.keys()))
+        
+        era5_hourly_request["day"] = ["01"]
+        era5_hourly_request["month"] = ["01"]
+        era5_hourly_request["time"] = ["00:00"]
+
+        era5_hourly.client.retrieve(era5_hourly.cds_apiname, era5_hourly_request, landseamask_filepath)
+    
+    landseamask_filepath = os.path.join(download_parent_dir, "reanalysis-era-interim", "land_sea_mask.nc")
+
+    if not os.path.exists(landseamask_filepath):
+        era5_interim = EraInterimApiCall(download_parent_dir, region)
+        
+        era5_interim_request = era5_interim._create_request(year, f"{landseamask_feature_identifier['land_sea_mask'].uid}.128", False)
+        
+        era5_interim_request["date"] = f"{str(year)}-01-01"
+        era5_interim_request["time"] = "00:00"
+
+        era5_interim.client.retrieve(era5_interim.cds_apiname, era5_interim_request, landseamask_filepath)
