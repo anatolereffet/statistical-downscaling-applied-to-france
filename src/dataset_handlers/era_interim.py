@@ -3,7 +3,7 @@ import os
 import cdsapi
 import xarray as xr
 
-from src.utils import RectangularPolygon, assess_file_existence, remove_files
+from src.utils import RectangularPolygon, assess_file_existence
 from src.dataset_handlers.climate_feature_functions import (
     buck_vapour_pressure,  
     relative_humidity,
@@ -89,10 +89,10 @@ class EraInterimApiCall:
         Returns:
             area_request (str): Geographical filter as required by CDS API
         """
-        N = self.region.max_lon
-        S = self.region.min_lon
-        W = self.region.min_lat 
-        E = self.region.max_lat 
+        N = self.region.max_lat
+        S = self.region.min_lat
+        W = self.region.min_lon 
+        E = self.region.max_lon 
 
         area_request = f"{N}/{W}/{S}/{E}"
 
@@ -220,8 +220,6 @@ class EraInterimProcessor:
         shortwave_flux.attrs["unit"] = "W m^-2"
         shortwave_flux.to_netcdf(os.path.join(self.filepath_dir, f"srad_{self.year}.nc"))
         
-        remove_files(self.filepath_dir, self.year, "tp","t2m","d2m","sp","ssrd","u10","v10")
-
 
     def _singularize(self, features, flux: bool) -> None:
         """
@@ -244,9 +242,7 @@ class EraInterimProcessor:
 
             feature_data.to_netcdf(os.path.join(self.download_parent_dir, self.cds_apiname, f"{short_name_feature}_{self.year}.nc"))
         
-        
         feature_data.close()
-        os.remove(filepath)
 
     def _aggregate_fluxes(self, feature: str) -> xr.DataArray:
         """

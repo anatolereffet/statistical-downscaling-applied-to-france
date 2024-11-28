@@ -1,12 +1,23 @@
 import argparse 
+import os
 
 from src.copernicus_handler.api_call import CdsApiCall
-from src.dataset_handlers.static_features_extraction import get_elevation_data, get_geopotential_data, get_landseamasks
+from src.constants import DATASET_MAPPER, PERIMETER_POLYGON
 from src.copernicus_handler.data_preparation import CdsDataPreparation
-from src.utils import instanciate_mapping, RectangularPolygon
+from src.dataset_handlers.static_features_extraction import get_elevation_data, get_geopotential_data, get_landseamasks
+from src.utils import instanciate_mapping, RectangularPolygon, remove_files
 
-def main(dataset: str, output_dir: str, start_year: int, end_year: int): 
 
+def main(dataset: str, output_dir: str, start_year: int, end_year: int) -> None: 
+    """
+    
+    Launches the download for a given dataset on a given year range in the specified directory
+
+    Args:
+        dataset (str): Dataset name to be handled from ["10km","25km","80km"]
+        output_dir (str): directory name where the data should be placed 
+    
+    """
     era5_keys_info = [
     ("2m_dewpoint_temperature","d2m",168),
     ("2m_temperature","t2m",167),
@@ -17,28 +28,30 @@ def main(dataset: str, output_dir: str, start_year: int, end_year: int):
     ("total_precipitation","tp",228)
     ]
 
-
+    perimeter_polygon = RectangularPolygon(*PERIMETER_POLYGON)
     era5_features_identifiers = instanciate_mapping(era5_keys_info)
 
-    france_polygon = RectangularPolygon(-6.84, 13.71, 41.11, 51.4)
-
     for year in range(start_year, end_year + 1):
-        CdsApiCall(dataset, output_dir, year, era5_features_identifiers, france_polygon)\
+        CdsApiCall(dataset, output_dir, year, era5_features_identifiers, perimeter_polygon)\
         .download_data()
 
     for year in range(start_year, end_year + 1):
-        CdsDataPreparation(dataset, output_dir, year, era5_features_identifiers, france_polygon)\
+        CdsDataPreparation(dataset, output_dir, year, era5_features_identifiers, perimeter_polygon)\
             .singularize_features()
         
     for year in range(start_year, end_year + 1):
-        CdsDataPreparation(dataset, output_dir, year, era5_features_identifiers, france_polygon)\
+        CdsDataPreparation(dataset, output_dir, year, era5_features_identifiers, perimeter_polygon)\
             .create_features()
     
     # Pulling elevation and land sea mask data if absent
-    get_geopotential_data(output_dir, start_year, france_polygon)
-    get_landseamasks(output_dir, start_year, france_polygon)
+    get_geopotential_data(output_dir, start_year, perimeter_polygon)
+    get_landseamasks(output_dir, start_year, perimeter_polygon)
     get_elevation_data(output_dir)
-    
+
+    # remove the initial files having processed their final version
+    for year in range(start_year, end_year+1):
+        remove_files(os.path.join(output_dir,DATASET_MAPPER.get(dataset)), year, "tp","t2m","d2m","sp","ssrd","u10","v10")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     

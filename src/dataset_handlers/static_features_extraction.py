@@ -1,6 +1,5 @@
 import os 
 import requests
-import cdsapi
 import xarray as xr
 
 from src.dataset_handlers.climate_feature_functions import geopotential_height

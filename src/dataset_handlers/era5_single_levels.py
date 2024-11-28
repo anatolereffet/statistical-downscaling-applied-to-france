@@ -3,7 +3,7 @@ import os
 import cdsapi
 import xarray as xr 
 
-from src.utils import RectangularPolygon, assess_file_existence, remove_files
+from src.utils import RectangularPolygon, assess_file_existence
 from src.dataset_handlers.climate_feature_functions import (
     buck_vapour_pressure,  
     relative_humidity,
@@ -38,10 +38,10 @@ class Era5SingleLevelsApiCall:
             "data_format":"netcdf",
             "download_format":"unarchived",
             "area":[
-                self.region.max_lon,
-                self.region.min_lat,
+                self.region.max_lat,
                 self.region.min_lon,
-                self.region.max_lat 
+                self.region.min_lat,
+                self.region.max_lon 
             ]
         }
         return request 
@@ -73,7 +73,7 @@ class Era5SingleLevelsProcessor:
         """
         Initializes EraSingleLevelsProcessor class
         """
-        self.cds_apiname = "reanalysis-single-levels"
+        self.cds_apiname = "reanalysis-era5-single-levels"
 
         self.download_parent_dir = download_parent_dir
         self.year = year 
@@ -105,7 +105,6 @@ class Era5SingleLevelsProcessor:
             spe_data.to_netcdf(os.path.join(self.download_parent_dir, self.cds_apiname,f"{short_name_feature}_{self.year}.nc"))
         
         tmp_data.close()
-        os.remove(filepath)
 
     def _feature_engineer(self) -> None:
         """
@@ -192,8 +191,6 @@ class Era5SingleLevelsProcessor:
         shortwave_flux.attrs['standard_name'] = 'surface_solar_radiation_downwards'
         shortwave_flux.attrs["unit"] = "W m^-2"
         shortwave_flux.to_netcdf(os.path.join(self.filepath_dir, f"srad_{self.year}.nc"))
-
-        remove_files(self.filepath_dir, self.year, "tp","t2m","d2m","sp","ssrd", "u10","v10")
 
     def _aggregate_fluxes(self, feature:str) -> xr.DataArray:
         """
