@@ -39,8 +39,8 @@ def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int
     features = [feat for feat in ["pr","tmmn","tmmx","tmean","rmin","rmax","10ws","sph","srad","vpd"] if feat != target]
     metric_names = ["R²","Adj-R²","KGE", "NMSE"]
 
-    if target == "pr":
-        clip_precipitation_predictions = True
+    # Boolean True if target is `pr`
+    clip_precipitation_predictions = target == "pr"
 
     model = model_factory(model_name, **model_kwargs)
     scenario_params = scenario_factory(scenarios[0], *years)

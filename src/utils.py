@@ -1,5 +1,6 @@
 from attrs import define
 import os
+from typing import Union
 
 import numpy as np
 import xarray as xr 
@@ -82,3 +83,37 @@ def assess_file_existence(year:str,filepath_dir:str, features: list = ["tmnn","t
         boolean True if all files are present in the given directory 
     """
     return all(os.path.exists(os.path.join(filepath_dir, f"{singular_feat}_{year}.nc")) for singular_feat in features)
+
+def filter_nan_entries(X:np.ndarray,y:np.ndarray) -> Union[None,tuple[np.ndarray,np.ndarray,np.ndarray]]:
+    """
+    This is a helper function to assess the NaN situation 
+    Either there is NaNs everywhere on the specific (i,j) gridpoint hence its a sea grid point
+    
+    Or there is only one NaN which might indicate we are on the edge case 
+    where we shifted values to create features and did not have the data available to complete. 
+    Hence one day is NaN
+
+    Args: 
+        X (np.ndarray): array holding predictors shape (nrows,nbfeatures)
+        y (np.ndarray): array holding target variable shape (nrows,)
+        valid_mask (np.ndarray): boolean array indicating valid values (non-NaN)
+    
+    """
+
+    if np.isnan(X).all() or np.isnan(y).all():
+        # Case Sea grid point.
+        return None, None, None
+    
+    #Initialize by default to ensure output is consistent even if condition below isn't triggered
+    valid_mask = np.ones(X.shape[0], dtype=bool)
+    
+    if np.isnan(X).any() or np.isnan(y).any():
+        valid_mask = ~np.isnan(X).any(axis=1) & ~np.isnan(y)
+        X = X[valid_mask]
+        y = y[valid_mask]
+
+    # Check if there is any data left 
+    if X.shape[0] == 0:
+        return None, None, None
+
+    return X, y, valid_mask
