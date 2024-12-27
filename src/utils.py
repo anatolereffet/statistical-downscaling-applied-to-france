@@ -2,6 +2,8 @@ from attrs import define
 import os
 from typing import Union
 
+from src.constants import SEASON_MAPPER
+
 import numpy as np
 import xarray as xr 
 
@@ -117,3 +119,73 @@ def filter_nan_entries(X:np.ndarray,y:np.ndarray) -> Union[None,tuple[np.ndarray
         return None, None, None
 
     return X, y, valid_mask
+
+def inverse_season_mapper(months : list) -> str:
+    """
+    If the months are not within the SEASON_MAPPER dictionary
+    create a custom folder for the desired months
+
+    Args:
+        months (list): List of months considered for the model
+    
+    Returns:
+        season (str): name of the season if it is written in the mapper, if it isn't return string of months separated by `_`
+
+    """
+    try:
+        season_key_index = list(SEASON_MAPPER.values()).index(months)
+        season = list(SEASON_MAPPER.keys())[season_key_index]
+    except ValueError:
+        season = "months_"+'_'.join(map(str,months))
+
+    return season
+
+def save_results(pred: np.ndarray, target: str, model_name: str, set: str, scenario: str, resolution: dict, months: list, ij: bool, file_type: str) -> None:
+    """
+    Save predictions to a generated directory of a machine learning model in a .npy format. 
+    If necessary creates the directory dynamically according to the experience setup 
+
+    Args:
+        pred (np.ndarray): This can be either a 2D or 3D numpy array. 
+                        Location wise it would be 3D (pred_at(i,j), i, j), grid would be a vector (n_predictions,)
+        target (str): Targeted feature for the ML pipeline 
+        model_name (str): Name of ML model used
+        set (str): Predictions on which set `train`or `test`
+        scenario (str): Scenario that was tested for example AtoB, AtoC
+        resolution (dict): resolution dictionary that contains the keys  ['y_f','X_c','Z_topo','y_c']
+        months (list): List of months that were used. Will reverse the season dictionary used 
+        ij (bool): Boolean assertion if the saved prediction are location wise or grid wise. Defaults to False
+        file_type (str): Type of file to be saved from ['prediction','groundtruth','baseline']
+    """
+    season = inverse_season_mapper(months)
+
+    base_path = os.path.join(
+        "./results",
+        f"pred_{target}",
+        season,
+        "location" if ij else "grid"
+    )
+    
+    if file_type == "prediction":
+        subfolder = os.path.join(
+            f"{resolution.get('y_f')[:2]}-{resolution.get('X_c')[:2]}",
+            "X_c" if resolution.get("y_c") is None else "X_c-y_c",
+            model_name
+        )
+        base_path = os.path.join(base_path, subfolder)
+
+    os.makedirs(base_path, exist_ok=True)
+
+    if file_type == "prediction":
+        filename = f"{set}_{scenario}.npy"
+    elif file_type == "baseline":
+        filename = f"{set}_{scenario}_{resolution.get('y_f')[:2]}-{resolution.get('X_c')[:2]}_{file_type}.npy"
+    else:
+        filename = f"{set}_{scenario}_{resolution.get('y_f')}_{file_type}.npy"
+
+    filepath = os.path.join(base_path, filename)
+    
+    if not os.path.exists(filepath):
+        np.save(filepath, pred)
+    else:
+        print(f"{file_type.capitalize()} file already exists, skipping.")

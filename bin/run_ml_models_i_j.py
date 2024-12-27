@@ -3,13 +3,13 @@ from src.dataset_handlers.data_hoarder import DataHoarder
 from src.metrics import compute_metrics, MetricsHoarder
 from src.modeling.model_factory import model_factory
 from src.modeling.scenario_handler import scenario_factory
-from src.utils import filter_nan_entries
+from src.utils import filter_nan_entries, save_results
 
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 
-def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],list[int]], months:list[int], resolution_params:dict, model_kwargs:dict, data_directory:str ="./data", is_baseline:bool=False) -> None:
+def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],list[int]], months:list[int], resolution_params:dict, model_kwargs:dict, data_directory:str ="./data", is_baseline:bool=False, save_pred:bool=False) -> None:
     """
     
     Computes for a given scenario setup location-wise model results
@@ -33,6 +33,7 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
                                     Note however that 'y_c' is optional, the features here are X_c, Z_topo, y_c; c stands for coarse, f for fine.
         data_directory (str): Directory where the data is stored after being downloaded. Defaults to "./data"
         is_baseline (bool): If the user wishes to compute the baseline results. Defaults to False
+        save_pred (bool): Boolean to save predictions and ground truth. Defaults to False
     """
     features = [feat for feat in ["pr", "tmmn", "tmmx", "tmean", "rmin", "rmax", "10ws", "sph", "srad", "vpd"] if feat != target]
     metric_names = ["R²", "Adj-R²", "KGE", "NMSE"]
@@ -68,6 +69,10 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
     train_metrics_allocator = MetricsHoarder(f"{'Baseline ' if is_baseline else ''}Train", metric_names)
     test_metrics_allocator = MetricsHoarder(f"{'Baseline ' if is_baseline else ''}Test", metric_names)
 
+    # Instanciate an NaN 3D matrix to fill with predictions to be saved.
+    train_predictions = np.full(y_HR_historical.shape).fill(np.nan)
+    test_predictions = np.full(y_HR.shape).fill(np.nan)
+
     for lat_hr_idx in range(lat_hr):
         for lon_hr_idx in range(lon_hr):
             # We recall the format (time, lat, lon, features)
@@ -79,7 +84,7 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
             
             X_LR_ij_historical, y_HR_ij_historical = X_LR_ij_historical.values, y_HR_ij_historical.values
 
-            X_LR_ij_historical, y_HR_ij_historical, mask = filter_nan_entries(X_LR_ij_historical, y_HR_ij_historical)
+            X_LR_ij_historical, y_HR_ij_historical, mask_historical = filter_nan_entries(X_LR_ij_historical, y_HR_ij_historical)
 
             if X_LR_ij_historical is None:
                 # Edge case verified, skip gridpoint
@@ -97,25 +102,24 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
             else:
                 # Apply the same mask to avoid dimension conflict and ensure we align arrays.
                 y_HR_ij_historical_baseline = y_HR_historical_baseline[:, lat_hr_idx, lon_hr_idx].values
-                y_HR_ij_historical_baseline = y_HR_ij_historical_baseline[mask]
-
-
-
-            train_metrics = compute_metrics(X_LR_ij_historical.shape[1],
-                                            y_HR_ij_historical,
-                                            y_HR_ij_historical_baseline if is_baseline else y_HR_pred_historical)
-            train_metrics_allocator.add(train_metrics)
+                y_HR_ij_historical_baseline = y_HR_ij_historical_baseline[mask_historical]
 
 
             X_LR_ij = X_LR.sel(latitude=latitude_ij, longitude=longitude_ij, method="nearest").values
             y_HR_ij = y_HR.sel(latitude=latitude_ij, longitude=longitude_ij, method="nearest").values 
 
-            X_LR_ij, y_HR_ij, mask = filter_nan_entries(X_LR_ij, y_HR_ij)
+            X_LR_ij, y_HR_ij, mask_present = filter_nan_entries(X_LR_ij, y_HR_ij)
 
             if X_LR_ij is None:
                 # Edge case verified, skip gridpoint 
                 continue 
+            
+            y_HR_prediction_historical = y_HR_ij_historical_baseline if is_baseline else y_HR_pred_historical
 
+            train_metrics = compute_metrics(X_LR_ij_historical.shape[1],
+                                            y_HR_ij_historical,
+                                            y_HR_prediction_historical)
+            train_metrics_allocator.add(train_metrics)
 
             if not is_baseline:
                 X_LR_ij = std_scaler.transform(X_LR_ij)
@@ -126,13 +130,18 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
                     y_HR_pred = np.maximum(0, y_HR_pred)
             else:
                 y_HR_baseline_ij = y_HR_baseline.sel(latitude=latitude_ij, longitude=longitude_ij, method="nearest").values
-                y_HR_baseline_ij = y_HR_baseline_ij[mask]
+                y_HR_baseline_ij = y_HR_baseline_ij[mask_present]
                 
+            y_HR_prediction_present = y_HR_baseline_ij if is_baseline else y_HR_pred
 
-            
-            test_metrics = compute_metrics(X_LR_ij.shape[1], y_HR_ij, y_HR_baseline_ij if is_baseline else y_HR_pred)
+            test_metrics = compute_metrics(X_LR_ij.shape[1],
+                                           y_HR_ij,
+                                           y_HR_prediction_present)
             test_metrics_allocator.add(test_metrics)
 
+            if save_pred:
+                train_predictions[mask_historical, lat_hr_idx, lon_hr_idx] = y_HR_prediction_historical
+                test_predictions[mask_present, lat_hr_idx, lon_hr_idx] = y_HR_prediction_present
 
     print(train_metrics_allocator.summary())
     print(test_metrics_allocator.summary())
@@ -140,7 +149,13 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
     if MINMAX:
         print(train_metrics_allocator.minmax())
         print(test_metrics_allocator.minmax())  
-            
+        
+    if save_pred:
+        save_results(train_predictions, target, model_name, "train", scenario_name+"to"+scenario_name, resolution_params,months, ij=True, file_type="baseline" if is_baseline else "prediction")
+        save_results(test_predictions, target, model_name, "test", scenario_name+"to"+scenario_name, resolution_params,months, ij=True, file_type="baseline" if is_baseline else "prediction")
+
+        save_results(y_HR_historical, target, model_name, "train", scenario_name+"to"+scenario_name, resolution_params,months, ij=True, file_type="groundtruth")
+        save_results(y_HR, target, model_name, "test", scenario_name+"to"+scenario_name, resolution_params,months, ij=True, file_type="groundtruth")
 
 if __name__ == "__main__":
     MINMAX = True
@@ -159,7 +174,8 @@ if __name__ == "__main__":
           {"verbose":0,
          "n_jobs":-1,
          "random_state":42,
-         "max_iter":100,
+         "max_iter":4000,
          "n_estimators":100},
-         is_baseline=False
+         is_baseline=False,
+         save_pred=True
          )

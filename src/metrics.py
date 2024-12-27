@@ -78,6 +78,23 @@ def adjrsquared(nbfeatures:int,
     """
     return 1 - (1-rsquared)*(len(y) - 1) / (len(y) - nbfeatures - ddof)
 
+def nmse(y:np.ndarray, yhat:np.ndarray) -> float:
+    """
+    Implementation of normalized mean squared error 
+
+    Args:
+        y (np.ndarray): Vector holding target ground truth
+        yhat (np.ndarray): Vector holding predictions
+
+    Returns:
+        nmse (float): metric
+    """
+    mse = mean_squared_error(y, yhat)
+
+    nmse = mse / np.var(y)
+
+    return nmse
+
 def compute_metrics(nbfeatures:int, y:np.ndarray, yhat:np.ndarray, ddof:int=1) -> dict:
     """
     Helper function for MetricsHoarder to compute metrics easily
@@ -94,9 +111,8 @@ def compute_metrics(nbfeatures:int, y:np.ndarray, yhat:np.ndarray, ddof:int=1) -
     r2 = rsquared(y, yhat)
     adj_r2 = adjrsquared(nbfeatures, y, r2, ddof)
     kge_metric = kge(y, yhat)
-    mse = mean_squared_error(y, yhat)
-    nmse = mse / np.var(y)
-    return {"R²": r2, "Adj-R²": adj_r2, "KGE": kge_metric, "NMSE": nmse}
+    nmse_metric = nmse(y, yhat)
+    return {"R²": r2, "Adj-R²": adj_r2, "KGE": kge_metric, "NMSE": nmse_metric}
 
 class MetricsHoarder:
     """

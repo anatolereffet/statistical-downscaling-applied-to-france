@@ -1,14 +1,15 @@
 from src.constants import SEASON_MAPPER
-from src.metrics import compute_metrics, MetricsHoarder, get_r2perbucket
+from src.metrics import compute_metrics, MetricsHoarder, get_r2perbucket, abs_error
 from src.dataset_handlers.data_hoarder import DataHoarder
 from src.modeling.model_factory import model_factory
 from src.modeling.scenario_handler import scenario_factory
+from src.utils import save_results
 
 import numpy as np 
 from sklearn.preprocessing import StandardScaler
 
 
-def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int],list[int]], months:list[int], resolution_params:dict, model_kwargs:dict, data_directory:str = "./data") -> None:
+def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int],list[int]], months:list[int], resolution_params:dict, model_kwargs:dict, data_directory:str = "./data", save_pred:bool =False) -> None:
     """
     Computes for a given scenario a model and its results
 
@@ -32,6 +33,7 @@ def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int
                        during model initialisation if needed. 
                        These need to follow sklearn concerned model convention or they won't be registered.
         data_directory (str): Directory where the data is stored after being downloaded. Defaults to "./data"
+        save_pred (bool): Boolean to save predictions and ground truth. Defaults to False
 
     """
     print(f"Model : {model_name}")
@@ -68,14 +70,18 @@ def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int
     train_metrics = compute_metrics(X_LRtoHR_historical.shape[1], y_HR_historical, y_HR_pred)
     train_metrics_allocator.add(train_metrics)
 
-    print('Baseline is ')
     baseline_metrics = compute_metrics(X_LRtoHR_historical.shape[1], y_HR_historical, baseline_prediction)
-    print(baseline_metrics)
+    print('Baseline is', baseline_metrics)
+    
     print(train_metrics_allocator.summary())
 
     # Compute Delta R² between baseline and train
     print('Delta R² baseline - prediction_train', baseline_metrics["R²"] - train_metrics["R²"])
 
+    if save_pred:
+        save_results(y_HR_pred, target, model_name, "train", scenarios[0], resolution_params, months, ij=False, file_type="prediction")
+        save_results(baseline_prediction, target, model_name, "train", scenarios[0], resolution_params, months, ij=False, file_type="baseline")
+        save_results(y_HR_historical, target, model_name, "train", scenarios[0], resolution_params, months, ij=False, file_type="groundtruth")
 
     if BUCKET:
         get_r2perbucket(y_HR_historical, y_HR_pred)
@@ -102,16 +108,20 @@ def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int
             y_HR_pred = np.maximum(0, y_HR_pred)
             baseline_prediction = np.maximum(0 , baseline_prediction)
 
-        print('Baseline is ')
-        baseline_metrics = compute_metrics(X_LR, y_HR, baseline_prediction)
-        print(baseline_metrics)
+        baseline_metrics = compute_metrics(X_LR.shape[1], y_HR, baseline_prediction)
+        print('Baseline is', baseline_metrics)
 
-        test_metrics = compute_metrics(X_LR, y_HR, y_HR_pred)
+        test_metrics = compute_metrics(X_LR.shape[1], y_HR, y_HR_pred)
         test_metrics_allocator.add(test_metrics)
         print(test_metrics_allocator.summary())
 
         # Compute Delta R² between baseline and test
         print('Delta R² baseline - prediction_test =>', baseline_metrics["R²"] - test_metrics["R²"])
+        
+        if save_pred:
+            save_results(y_HR_pred, target, model_name, "test", sub_scenario, resolution_params, months, ij=False, file_type="prediction")
+            save_results(baseline_prediction, target, model_name, "test", sub_scenario, resolution_params, months, ij=False, file_type="baseline")
+            save_results(y_HR, target, model_name, "test", sub_scenario, resolution_params, months, ij=False, file_type="groundtruth")
 
         if BUCKET:
             get_r2perbucket(y_HR, y_HR_pred)
@@ -137,7 +147,8 @@ if __name__ == "__main__":
         {"verbose":0,
          "n_jobs":-1,
          "random_state":42,
-         "max_iter":100,
-         "n_estimators":100}
+         "max_iter":4000,
+         "n_estimators":100},
+         save_pred = False
           )
     
