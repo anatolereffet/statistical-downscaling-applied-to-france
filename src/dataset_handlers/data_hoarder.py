@@ -10,7 +10,7 @@ class DataHoarder():
     """
     Class enabling the computation of X,y train and test set easily
     """
-    def __init__(self, target:str, features:list[int], months: list[int], scenario_params:dict, resolution_params:dict, location_based:bool=False, data_directory:str = "./data") -> None:
+    def __init__(self, target:str, features:list[int], months: list[int], scenario_params:dict, resolution_params:dict, bool_fit_per_grid:bool=False, data_directory:str = "./data") -> None:
         """
         Initializes DataHoarder class
 
@@ -25,13 +25,13 @@ class DataHoarder():
                                                           "Z_topo":"50km",
                                                           "y_c":"25km} 
                                     Note however that 'y_c' is optional, the features here are X_c, Z_topo, y_c; c stands for coarse, f for fine.
-            location_based (bool): Boolean to choose between location based data processing or flattening. Defaults to False
+            bool_fit_per_grid (bool): Boolean to choose between location based data processing or flattening. Defaults to False
             data_directory (str): Directory where the data is stored. Defaults to "./data"
         
         """
         self.target = target 
         self.features = features 
-        self.location_based = location_based 
+        self.bool_fit_per_grid = bool_fit_per_grid 
         self.scenario_params = scenario_params
         self.resolution_params = resolution_params
         self.data_directory = data_directory
@@ -64,14 +64,14 @@ class DataHoarder():
         """
 
         if self._assess_single_predictor_set():
-            X = self._pull_single_predictor_set(set, self.location_based)
+            X = self._pull_single_predictor_set(set, self.bool_fit_per_grid)
 
         else:
             X = self._pull_aggregated_predictors(set)
 
         y = self._pull_target(set)
 
-        if not self.location_based:
+        if not self.bool_fit_per_grid:
             nan_mask = ~np.isnan(X).any(axis=1) & ~np.isnan(y)
             self.nan_mask = nan_mask
             X = X[nan_mask]
@@ -79,11 +79,11 @@ class DataHoarder():
 
         return X, y
     
-    def pull_baseline_prediction(self, set:str) -> np.ndarray:
+    def generate_baseline_data_by_mapping_LR_to_HR(self, set:str) -> np.ndarray:
         """
         Generates baseline predictions using lower resolution target data for the specified dataset.
 
-        Raises a RuntimeError if `pull_X_y` has not been called prior to this method when `location_based` is False.
+        Raises a RuntimeError if `pull_X_y` has not been called prior to this method when `bool_fit_per_grid` is False.
 
         Args:
             set (str): Specifies which dataset to use; either "train" or "test".
@@ -92,7 +92,7 @@ class DataHoarder():
             np.ndarray: Baseline predictions corresponding to the lower resolution target data.
         """
         # We need the nan mask on a global grid setup.
-        if not hasattr(self, "nan_mask") and not self.location_based:
+        if not hasattr(self, "nan_mask") and not self.bool_fit_per_grid:
             raise RuntimeError("pull_X_y needs to be called prior to pulling baseline prediction")
         
         # The double get dictionary is simply to work through the fact that we do not integrate always y_c as a parameter
@@ -100,7 +100,7 @@ class DataHoarder():
                                self.months_list, self.resolution_params.get("y_c",self.resolution_params["X_c"]),
                                self.scenario_params[f"{set}_polygon"])
 
-        if self.location_based:
+        if self.bool_fit_per_grid:
             return y_LRtoHR
         
 
@@ -112,16 +112,16 @@ class DataHoarder():
 
         return baseline_prediction
     
-    def _pull_single_predictor_set(self, set:str, location_based:bool) -> np.ndarray:
+    def _pull_single_predictor_set(self, set:str, bool_fit_per_grid:bool) -> np.ndarray:
         """
         Retrieves predictor data for a single-resolution predictor set for the specified dataset.
 
         Args:
             set (str): Specifies which dataset to use; either "train" or "test".
-            location_based (bool): Determines whether to keep the data in its original 4D shape if True, or flattened otherwise.
+            bool_fit_per_grid (bool): Determines whether to keep the data in its original 4D shape if True, or flattened otherwise.
 
         Returns:
-            np.ndarray: Predictor data array, either in 4D shape (time, latitude, longitude, variables) if `location_based` is True, or flattened otherwise.
+            np.ndarray: Predictor data array, either in 4D shape (time, latitude, longitude, variables) if `bool_fit_per_grid` is True, or flattened otherwise.
         """
 
         X = self._get_xdata(self.features,
@@ -130,7 +130,7 @@ class DataHoarder():
                     resolution=self.resolution_params.get("X_c"),
                     region = self.scenario_params[f'{set}_polygon'])
         
-        if not location_based:
+        if not bool_fit_per_grid:
             #len variables + elevation data (1)
             X = X.values.reshape(len(X.valid_time) * len(X.latitude) * len(X.longitude), len(self.features) + 1)
 
@@ -144,7 +144,7 @@ class DataHoarder():
             set (str): Specifies which dataset to use; either "train" or "test".
 
         Returns:
-            np.ndarray: Aggregated predictor data array, either in 4D shape (time, latitude, longitude, variables) if `location_based` is True, or flattened otherwise.
+            np.ndarray: Aggregated predictor data array, either in 4D shape (time, latitude, longitude, variables) if `bool_fit_per_grid` is True, or flattened otherwise.
         """
         # We set to true location based as we need the 4D matrix shape
         self.X = self._pull_single_predictor_set(set, True)
@@ -158,7 +158,7 @@ class DataHoarder():
         self.X = xr.concat([self.X, y_lr], dim = "variable")
 
         #len variables + elevation data (1) + lower resolution target `y_c` (1)
-        if not self.location_based:
+        if not self.bool_fit_per_grid:
             self.X = self.X.values.reshape(len(self.X.valid_time) * len(self.X.latitude) * len(self.X.longitude), len(self.features) + 2)
 
         return self.X
@@ -171,7 +171,7 @@ class DataHoarder():
             set (str): Specifies which dataset to use; either "train" or "test".
 
         Returns:
-            np.ndarray: Target data array, either in 3D shape (time, latitude, longitude) if `location_based` is True, or flattened otherwise.
+            np.ndarray: Target data array, either in 3D shape (time, latitude, longitude) if `bool_fit_per_grid` is True, or flattened otherwise.
         """
         y = self._get_ydata(self.target, 
                       years = self.scenario_params[f'{set}_time'],
@@ -179,7 +179,7 @@ class DataHoarder():
                       resolution = self.resolution_params.get("y_f"),
                       region = self.scenario_params[f'{set}_polygon'])
         
-        if not self.location_based:
+        if not self.bool_fit_per_grid:
             y = y.values.reshape(len(y.valid_time) * len(y.latitude) * len(y.longitude)) 
 
         return y   
@@ -199,6 +199,10 @@ class DataHoarder():
         """
         Pull feature data according to features of interest, years and
         polygon of interest
+
+        Note: 
+        We apply a reindexation of the features on a higher grid resolution to ensure X and Y shape matches throughout the experiment train/test setup.
+        Elevation undergoes a specific treatment as it might come an alternative source and not be on the native grid shared by all features.
         
         Args:
             features (list[str]): list of features

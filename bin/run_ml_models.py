@@ -1,5 +1,5 @@
 from src.constants import SEASON_MAPPER
-from src.metrics import compute_metrics, MetricsHoarder, get_r2perbucket, abs_error
+from src.metrics import compute_metrics, MetricsHoarder, get_r2perbucket
 from src.dataset_handlers.data_hoarder import DataHoarder
 from src.modeling.model_factory import model_factory
 from src.modeling.scenario_handler import scenario_factory
@@ -42,7 +42,8 @@ def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int
     metric_names = ["R²","Adj-R²","KGE", "NMSE"]
 
     # Boolean True if target is `pr`
-    clip_precipitation_predictions = target == "pr"
+    # This might happen during linear regression as prediction can be negative which isn't possible for precipitation.
+    enforce_nonnegative_precipitation = target == "pr"
 
     model = model_factory(model_name, **model_kwargs)
     scenario_params = scenario_factory(scenarios[0], *years)
@@ -59,9 +60,9 @@ def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int
     model.fit(X_LRtoHR_historical, y_HR_historical)
     y_HR_pred = model.predict(X_LRtoHR_historical)
 
-    baseline_prediction = db.pull_baseline_prediction("train")
+    baseline_prediction = db.generate_baseline_data_by_mapping_LR_to_HR("train")
 
-    if clip_precipitation_predictions:
+    if enforce_nonnegative_precipitation:
         # This is a simple feedback to see how many rows were clipped
         print(f"Affected rows: {np.sum(y_HR_pred < 0)/len(y_HR_pred):.2f}")
         y_HR_pred = np.maximum(0, y_HR_pred)
@@ -95,14 +96,13 @@ def main(scenarios: list[str], model_name:str, target:str, years: tuple[list[int
 
         X_LR, y_HR = db.pull_X_y("test")
         X_LR = standard_scaler.transform(X_LR)
-
         y_HR_pred = model.predict(X_LR)
         
         # Compare quickly how we do against a baseline prediction
         # i.e. Y_c reindexed on an HR grid.
-        baseline_prediction = db.pull_baseline_prediction("test")
+        baseline_prediction = db.generate_baseline_data_by_mapping_LR_to_HR("test")
 
-        if clip_precipitation_predictions:
+        if enforce_nonnegative_precipitation:
             # This is a simple feedback to see how many rows were clipped
             print(f"Affected rows: {np.sum(y_HR_pred < 0)/len(y_HR_pred):.2f}")
             y_HR_pred = np.maximum(0, y_HR_pred)

@@ -39,7 +39,8 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
     metric_names = ["R²", "Adj-R²", "KGE", "NMSE"]
 
     # Boolean True if target is `pr`
-    clip_precipitation_predictions = target == "pr"
+    # This might happen during linear regression as prediction can be negative which isn't possible for precipitation.
+    enforce_nonnegative_precipitation = target == "pr"
 
     scenario_params = scenario_factory(scenario_name, *years)
 
@@ -57,8 +58,8 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
 
     if is_baseline:
         model = None
-        y_HR_historical_baseline = db.pull_baseline_prediction("train")
-        y_HR_baseline = db.pull_baseline_prediction("test")
+        y_HR_historical_baseline = db.generate_baseline_data_by_mapping_LR_to_HR("train")
+        y_HR_baseline = db.generate_baseline_data_by_mapping_LR_to_HR("test")
 
 
     # For each (i,j) at fit, we want to see which is the closest pair y_HR(i,j);y_HR_historical(i,j)
@@ -70,8 +71,8 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
     test_metrics_allocator = MetricsHoarder(f"{'Baseline ' if is_baseline else ''}Test", metric_names)
 
     # Instanciate an NaN 3D matrix to fill with predictions to be saved.
-    train_predictions = np.full(y_HR_historical.shape).fill(np.nan)
-    test_predictions = np.full(y_HR.shape).fill(np.nan)
+    train_predictions = np.full(y_HR_historical.shape, fill_value=np.nan)
+    test_predictions = np.full(y_HR.shape, fill_value=np.nan)
 
     for lat_hr_idx in range(lat_hr):
         for lon_hr_idx in range(lon_hr):
@@ -97,7 +98,7 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
 
                 y_HR_pred_historical = model.predict(X_LR_ij_historical)
 
-                if clip_precipitation_predictions:
+                if enforce_nonnegative_precipitation:
                     y_HR_pred_historical = np.maximum(0, y_HR_pred_historical)
             else:
                 # Apply the same mask to avoid dimension conflict and ensure we align arrays.
@@ -126,7 +127,7 @@ def main(scenario_name:str, model_name:str,target:str, years:tuple[list[int],lis
 
                 y_HR_pred = model.predict(X_LR_ij)
 
-                if clip_precipitation_predictions:
+                if enforce_nonnegative_precipitation:
                     y_HR_pred = np.maximum(0, y_HR_pred)
             else:
                 y_HR_baseline_ij = y_HR_baseline.sel(latitude=latitude_ij, longitude=longitude_ij, method="nearest").values
@@ -177,5 +178,5 @@ if __name__ == "__main__":
          "max_iter":4000,
          "n_estimators":100},
          is_baseline=False,
-         save_pred=True
+         save_pred=False
          )

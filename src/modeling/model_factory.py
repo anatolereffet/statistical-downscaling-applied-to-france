@@ -10,6 +10,8 @@ def model_factory(model_name, **kwargs):
     Args:
         model_name (str): Model name to choose from ['linear_reg','linear_svr','svr','rf','gbr']
         for linear regression, support vector regression or random forest
+        kwargs: We rely here on sklearn specific model arguments. 
+        We filter any kwargs that can't be applied to a specific model to avoid any downstream crash.
         
     Returns:
         sklearn corresponding model object
